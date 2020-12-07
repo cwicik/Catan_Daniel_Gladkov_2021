@@ -1,0 +1,17 @@
+{
+    "delete_later1":"1xx successful – the request was successfully received, understood, and accepted",
+    "delete_later2":"2xx server error – the server failed to fulfil an apparently valid request",
+    "delete_later3":"3xx client error – the request contains bad syntax or cannot be fulfilled",
+    "100": "Connected Successfully",
+    "101": "Registered Successfully",
+    "102": "Logged In Successfully",
+    "103": "Email Code Confirmed",
+    "200": "Connection To Server Has Failed",
+    "201": "Username Too Short",
+    "202": "Password Must Be Atleast 6 Characters Long And Include One Capital Letter And One Digit",
+    "203": "Incorrect Log In Information",
+    "204": "Username Already Taken",
+    "205": "Invalid Email",
+    "206": "Username Already Logged In",
+    "300": "Unknown Command"
+}
