@@ -17,7 +17,7 @@ root.title("Catan")
 x = 960
 y = 540
 root.geometry("%dx%d" % (x,y))
-root.resizable(width=False, height=False)
+#root.resizable(width=False, height=False)
 # root.attributes("-fullscreen", True)
 
 
@@ -45,7 +45,6 @@ def loading_cycles():
         yield cycle
         cycle.insert(0, cycle.pop())
 
-cycles = loading_cycles()
 
 def loading(cycles, canvas):
     center = (canvas.winfo_screenwidth() / 2, canvas.winfo_screenheight() / 1.5)
@@ -54,46 +53,57 @@ def loading(cycles, canvas):
         try:
             cycle = next(cycles)
             for i in range(8):
-                canvas.create_oval(center[0] + 30 * cos(i * pi / 4)- 10, center[1] + 30 * sin(i * pi / 4)- 10,
-                                   center[0] + 30 * cos(i * pi / 4)+ 10, center[1] + 30 * sin(i * pi / 4)+ 10,
+                canvas.create_oval(center[0] + 30 * cos(i * pi / 4) - 10, center[1] + 30 * sin(i * pi / 4) - 10,
+                                   center[0] + 30 * cos(i * pi / 4) + 10, center[1] + 30 * sin(i * pi / 4) + 10,
                                    fill=cycle[i], outline='')
             canvas.update()
             time.sleep(0.1)
         except:
             pass
 
+def attempt_connection(start, client_socket, error, error_label):
+    global connected
+    while connected is not True:
+        if start < time.time() - 4:
+            error.set(connected)
+            error_label.update()
+        connected = client_socket.start()
 
 def connect_to_server():
     global client_socket
     global current_frame
+    global connected
     if current_frame is not None:
         current_frame.destroy()
 
     connecting_to_server = Frame(root)
-    title = Label(connecting_to_server, text='Catan', font=('Comic Sans', 22), fg='Crimson')
-    title.place(x=250)
+    Label(connecting_to_server, text='Catan', font=('Comic Sans', 22), fg='Crimson').place(x=960)
     error = StringVar()
+    canvas = Canvas(connecting_to_server, width=800, height=800)
+    canvas.place(x=960, y=100)
     error_label = Label(connecting_to_server, textvariable=error, font=('Comic Sans', 22), fg='Red')
     error_label.place(x=400, y=400)
-    canvas = Canvas(connecting_to_server, width=900, height=900)
-    canvas.place(x=250, y=100)
-    loading_thread = threading.Thread(target=loading, args=(cycles, canvas))
-    loading_thread.start()
-
     current_frame = connecting_to_server
     current_frame.pack(expand=True, fill=BOTH)
+
     client_socket = Client('127.0.0.1', 1731)
-    start = time.time()
-
-
-    loading_thread = threading.Thread(target=loading, args=(cycles, canvas))
-    loading_thread.start()
     connected = client_socket.start()
+    if connected is not True:
+        cycles = loading_cycles()
+        start = time.time()
+        client_handler = threading.Thread(target=attempt_connection, args=(start, client_socket, error, error_label),daemon=True)
+        client_handler.start()
     while connected is not True:
-        if start > time.time() + 4:
-            error.set(connected)
-            error_label.update()
-        connected = client_socket.start()
+        try:
+            cycle = next(cycles)
+            for i in range(8):
+                canvas.create_oval(100 + 30 * cos(i * pi / 4)- 10, 100 + 30 * sin(i * pi / 4)- 10,
+                               100 + 30 * cos(i * pi / 4)+ 10, 100 + 30 * sin(i * pi / 4)+ 10,
+                               fill=cycle[i], outline='')
+            canvas.update()
+            time.sleep(0.1)
+        except:
+            pass
     log_in_screen()
 
 
@@ -105,7 +115,7 @@ def register_screen():
     username = StringVar()
     password = StringVar()
     email = StringVar()
-    register_frame = Frame(root, width=400, height=400)
+    register_frame = Frame(root)
     Entry(register_frame, textvariable=username).pack()
     Entry(register_frame, show='*', textvariable=password).pack()
     Entry(register_frame, textvariable=email).pack()
@@ -121,11 +131,13 @@ def log_in_screen():
         current_frame.destroy()
     username = StringVar()
     password = StringVar()
-    log_in_frame = Frame(root, width=400, height=400)
-    Entry(log_in_frame, textvariable=username).pack()
-    Entry(log_in_frame, show='*', textvariable=password).pack()
-    Button(log_in_frame, text='Log In', command=lambda : log_in_user(username.get(), password.get())).pack()
-    Button(log_in_frame, text='Create new account', command=register_screen).pack()
+    log_in_frame = Frame(root)
+    Entry(log_in_frame, textvariable=username).place(x=900, y=100)
+    Entry(log_in_frame, show='*', textvariable=password).place(x=900, y=130)
+    Button(log_in_frame, text='Log In', command=lambda : log_in_user(username.get(), password.get())).place(x=935, y=200)
+    Button(log_in_frame, text='Create new account', command=register_screen).place(x=900, y=250)
+    Label(log_in_frame, text='Username', font=('Comic Sans', 14)).place(x=400, y=400)
+    Label(log_in_frame, text='Password', font=('Comic Sans', 14)).place(x=400, y=400)
 
     current_frame = log_in_frame
     current_frame.pack(expand=True, fill=BOTH)
@@ -193,9 +205,10 @@ def log_in_user(username, password):
         error.configure(text=get_error(code))
 
 def main():
-    threading.Thread(target=connect_to_server).start()
+    threading.Thread(target=connect_to_server, daemon=True).start()
 
     mainloop()
+
 
 if __name__ == '__main__':
     main()

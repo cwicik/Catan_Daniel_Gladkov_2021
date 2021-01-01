@@ -4,7 +4,7 @@ import threading
 from pyisemail import is_email
 from random import randint
 from time import sleep
-
+import smtplib
 
 class UserConnection:
 
@@ -140,12 +140,33 @@ class Server:
     def get_username(*args):
         return args[1].get_username()
 
+    def send_email(self, email, code):
+        code_of_gmail = "cobhzmweebeajsfz"
+
+        sender = "daniel.gladkov@gmail.com"
+        receivers = ['nivmeir2804@gmail.com']
+        message = """From: From Person <daniel.gladkov@gmail.com>
+        To: nivmeir2804@gmail.com
+        Subject: SMTP e-mail test
+
+        This is a test e-mail message.
+        """
+
+        try:
+            smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
+            smtpObj.starttls()
+            smtpObj.login("daniel.gladkov@gmail.com", code_of_gmail)
+            smtpObj.sendmail(sender, receivers, message)
+            print("Successfully sent email")
+        except BaseException as e:
+            print(e)
+
     def confirm_log_in(self, *args):
         user = args[0]
         code = args[1]
         username = args[2]
         email = args[3]
-        # send email here with code: https://realpython.com/python-send-email/
+        self.send_email(email, code)
         input = user.get_socket().recv(1024).decode()
         count = 0
         while code != input:
