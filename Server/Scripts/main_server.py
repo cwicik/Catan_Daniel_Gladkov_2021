@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import serialization
 
 class UserConnection:
 
@@ -20,6 +21,30 @@ class UserConnection:
         self.operations = operations
         self.check_connection = check_connection
         self.user = None
+        self._private_key = None
+        self.public_key = None
+
+    def generate_keys(self):
+        self._private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        self.public_key = self._private_key.public_key()
+
+    def encrypt_message(self, message):
+        if type(message) != "bytes":
+            message = message.encode()
+        return self.public_key_user.encrypt(message,
+                                       padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                                    algorithm=hashes.SHA256(),
+                                                    label=None))
+
+    def decrypt_message(self, encrypted_message):
+        return self._private_key.decrypt(encrypted_message,
+                                         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                                      algorithm=hashes.SHA256(),
+                                                      label=None)).decode()
 
     def get_socket(self):
         return self.socket
@@ -32,20 +57,28 @@ class UserConnection:
 
     def handle_client(self):
         try:
-            self.public_key_user = self.socket.recv(1024).decode()
-            self.socket.sendall(self.operations[request[:3]](request[3:], self).encode())
+            self.generate_keys()
+            key = self.socket.recv(8192)
+            self.public_key_user = serialization.load_pem_public_key(key,
+                                                                      backend=default_backend())
+            self.socket.sendall(self.public_key.public_bytes(
+                                encoding=serialization.Encoding.PEM,
+                                format=serialization.PublicFormat.SubjectPublicKeyInfo))
+
             while True:
-                request = self.decrypt_message(self.socket.recv(1024))
+                request = self.decrypt_message(self.socket.recv(8192))
+                print(request)
                 self.check_connection()
                 print('command:', request[:3])
                 try:
-                    self.socket.sendall(self.encrypt_message(self.operations[request[:3]](request[3:], self).encode()))
+                    self.socket.sendall(self.encrypt_message(self.operations[request[:3]](request[3:], self)))
                 except BaseException as e:
-                    self.socket.sendall('300'.encode())
+                    self.socket.sendall(self.encrypt_message('300'))
                     print('error:' , e)
                 if request != '':
                     print('Received {}'.format(request))
-        except socket.error:
+        except socket.error as e:
+            print(e)
             print('shutting down')
             self.socket.close()
             self.socket = None
@@ -59,8 +92,7 @@ class Server:
         self.operations = None
         self.users = []
         self.cluster = MongoClient(mongo_conection)['Catan']
-        self._private_key = None
-        self.public_key = None
+
 
     def start(self):
         try:
@@ -70,9 +102,7 @@ class Server:
             self.socket.listen(1)
             self.operations = {'rgs': self.register_user,
                                'lgn': self.log_in_user,
-                               'usr': self.get_username,
-                               'cde': self.check_code} #might not be needed
-            self.generate_keys()
+                               'usr': self.get_username}
             while True:
                 client_socket, client_address = self.socket.accept()
                 self.handle_client(client_socket)
@@ -80,25 +110,6 @@ class Server:
         except socket.error as e:
             print(e)
 
-    def generate_keys(self):
-        self._private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-            backend=default_backend()
-        )
-        self.public_key = self._private_key.public_key()
-
-    def encrypt_message(self, message):
-        return self.public_key.encrypt(message,
-                                       padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                                    algorithm=hashes.SHA256(),
-                                                    label=None))
-
-    def decrypt_message(self, encrypted_message):
-        return self._private_key.decrypt(encrypted_message,
-                                         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                                      algorithm=hashes.SHA256(),
-                                                      label=None)).decode()
 
     def handle_client(self, client_socket):
         print("Handling Client Number", len(self.users))
@@ -162,7 +173,7 @@ class Server:
             print(e)
         if self.cluster['Users'].find_one({'username': username, 'password': password}) is not None\
                   and username not in self.check_online_users():
-            self.confirm_log_in(user, str(randint(100000, 999999), username, self.cluster['Users'].find_one({'username': username, 'password': password}['email'])))
+            self.confirm_log_in(user, str(randint(100000, 999999)), username, self.cluster['Users'].find_one({'username': username, 'password': password})['email'])
             return '102'
         return '203'
 
@@ -171,6 +182,7 @@ class Server:
         return args[1].get_username()
 
     def send_email(self, email, code):
+        print('sending email...')
         code_of_gmail = "cobhzmweebeajsfz"
 
         sender = "daniel.gladkov@gmail.com"
@@ -193,6 +205,7 @@ class Server:
             print(e)
 
     def confirm_log_in(self, *args):
+        print('confirming log in...')
         user = args[0]
         code = args[1]
         username = args[2]
