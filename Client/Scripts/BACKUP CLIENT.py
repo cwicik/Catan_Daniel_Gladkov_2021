@@ -10,7 +10,7 @@ root = Tk()
 
 root.title("Catan")
 # x = root.winfo_screenwidth()
-# y = root.winfo_screenheight()
+# y = root.winfo_screenheight() 
 x = 400
 y = 400
 root.geometry("%dx%d" % (x,y))
@@ -60,8 +60,6 @@ def log_in_screen():
 
 
 def check_username(username):
-    # if username_too_short in active_message_codes:
-        # active_message_codes.remove(username_too_short)
     if 4 < len(username) < 16:
         return True
     return False

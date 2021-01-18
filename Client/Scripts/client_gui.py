@@ -49,7 +49,6 @@ def loading_cycles():
 def loading(cycles, canvas):
     center = (canvas.winfo_screenwidth() / 2, canvas.winfo_screenheight() / 1.5)
     while True:
-        print('bruh')
         try:
             cycle = next(cycles)
             for i in range(8):
@@ -124,6 +123,7 @@ def register_screen():
     current_frame = register_frame
     current_frame.pack(expand=True, fill=BOTH)
 
+
 def log_in_screen():
     global current_frame
     error.configure(text="")
@@ -160,7 +160,12 @@ def get_error(code):
         return json.load(file)[code]
 
 def confirm_email(code):
-    pass
+    error.configure(text="")
+    code = client_socket.confirm_code(code)
+    if code[0] == '1':
+        print('confirmed')
+    else:
+        error.configure(text=get_error(code))
 
 def confirm_email_screen():
     global current_frame
@@ -169,13 +174,13 @@ def confirm_email_screen():
         current_frame.destroy()
 
     code = StringVar()
-    confirm_email_frame = Frame(root, width=400, height=400)
-    Label(confirm_email_frame, text='Enter The Code You Got In The Email Here').pack()
-    Entry(confirm_email_frame, textvariable=code).pack()
-    Button(confirm_email_frame, text='Log In', command=lambda : confirm_email(code.get()).pack())
+    confirm_email_frame = Frame(root)
+    Label(confirm_email_frame, text='Enter The Code You Got In The Email Here').place(x=400, y=400)
+    Entry(confirm_email_frame, textvariable=code).place(x=400, y=400)
+    Button(confirm_email_frame, text='Confirm email', command=lambda : confirm_email(code.get())).place(x=400, y=400)
 
     current_frame = confirm_email_frame
-    current_frame.pack()
+    current_frame.pack(expand=True, fill=BOTH)
 
 def register_user(username, password, email):
     global current_frame

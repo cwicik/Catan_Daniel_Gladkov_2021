@@ -6,10 +6,16 @@ from random import randint
 from time import sleep
 import smtplib
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+
 class UserConnection:
 
     def __init__(self, socket, cluster, operations, check_connection):
         self.socket = socket
+        self.public_key_user = None
         self.cluster = cluster
         self.operations = operations
         self.check_connection = check_connection
@@ -26,12 +32,14 @@ class UserConnection:
 
     def handle_client(self):
         try:
+            self.public_key_user = self.socket.recv(1024).decode()
+            self.socket.sendall(self.operations[request[:3]](request[3:], self).encode())
             while True:
-                request = self.socket.recv(1024).decode()
+                request = self.decrypt_message(self.socket.recv(1024))
                 self.check_connection()
                 print('command:', request[:3])
                 try:
-                    self.socket.sendall(self.operations[request[:3]](request[3:], self).encode())
+                    self.socket.sendall(self.encrypt_message(self.operations[request[:3]](request[3:], self).encode()))
                 except BaseException as e:
                     self.socket.sendall('300'.encode())
                     print('error:' , e)
@@ -51,6 +59,8 @@ class Server:
         self.operations = None
         self.users = []
         self.cluster = MongoClient(mongo_conection)['Catan']
+        self._private_key = None
+        self.public_key = None
 
     def start(self):
         try:
@@ -60,8 +70,9 @@ class Server:
             self.socket.listen(1)
             self.operations = {'rgs': self.register_user,
                                'lgn': self.log_in_user,
-                               'usr': self.get_username}
-
+                               'usr': self.get_username,
+                               'cde': self.check_code} #might not be needed
+            self.generate_keys()
             while True:
                 client_socket, client_address = self.socket.accept()
                 self.handle_client(client_socket)
@@ -69,6 +80,25 @@ class Server:
         except socket.error as e:
             print(e)
 
+    def generate_keys(self):
+        self._private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        self.public_key = self._private_key.public_key()
+
+    def encrypt_message(self, message):
+        return self.public_key.encrypt(message,
+                                       padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                                    algorithm=hashes.SHA256(),
+                                                    label=None))
+
+    def decrypt_message(self, encrypted_message):
+        return self._private_key.decrypt(encrypted_message,
+                                         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                                      algorithm=hashes.SHA256(),
+                                                      label=None)).decode()
 
     def handle_client(self, client_socket):
         print("Handling Client Number", len(self.users))
@@ -144,13 +174,14 @@ class Server:
         code_of_gmail = "cobhzmweebeajsfz"
 
         sender = "daniel.gladkov@gmail.com"
-        receivers = ['nivmeir2804@gmail.com']
+        receivers = [email]
         message = """From: From Person <daniel.gladkov@gmail.com>
-        To: nivmeir2804@gmail.com
-        Subject: SMTP e-mail test
+        To: {}
+        Subject: Confirmation Code For Catan
 
-        This is a test e-mail message.
-        """
+        Please enter the following code to confirm your email: {}
+        If this 
+        """.format(email, code)
 
         try:
             smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
@@ -168,6 +199,7 @@ class Server:
         email = args[3]
         self.send_email(email, code)
         input = user.get_socket().recv(1024).decode()
+        # Input doesnt work atm
         count = 0
         while code != input:
             count += 1
