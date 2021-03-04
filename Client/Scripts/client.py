@@ -33,7 +33,12 @@ class Client:
 
     def register(self, username, password, email):
         self.server_socket.sendall(self.encrypt_message(('rgs' + username + '\t' + password + '\t' + email)))
-        return self.decrypt_message(self.server_socket.recv(8192))
+        code = self.decrypt_message(self.server_socket.recv(8192))
+        if code[0] == '1':
+            self.server_socket.sendall(self.encrypt_message(('cnf' + username + '\t' + password + '\t' + email)))
+            return self.decrypt_message(self.server_socket.recv(8192))
+        else:
+            return code
 
     def log_in(self, username, password):
         self.server_socket.sendall(self.encrypt_message(('lgn' + username + '\t' + password)))
@@ -44,7 +49,38 @@ class Client:
         return self.decrypt_message(self.server_socket.recv(8192))
 
     def confirm_code(self, code):
-        self.server_socket.sendall(self.encrypt_message(('cde' + code)))
+        self.server_socket.sendall(self.encrypt_message(('cod' + code)))
+        return self.decrypt_message(self.server_socket.recv(8192))
+
+    def cancel(self):
+        self.server_socket.sendall(self.encrypt_message('cnl'))
+        self.decrypt_message(self.server_socket.recv(8192))
+
+    def host_game(self):
+        self.server_socket.sendall(self.encrypt_message('hst'))
+        return self.decrypt_message(self.server_socket.recv(8192))
+
+    def join_game(self, code):
+        self.server_socket.sendall(self.encrypt_message(('jin' + code)))
+        return self.decrypt_message(self.server_socket.recv(8192))
+
+    def get_players(self, code):
+        self.server_socket.sendall(self.encrypt_message(('plr' + code)))
+        return self.decrypt_message(self.server_socket.recv(8192))
+
+    def get_player_names(self):
+        return self.decrypt_message(self.server_socket.recv(8192))
+
+    def leave_lobby(self):
+        self.server_socket.sendall(self.encrypt_message('liv'))
+
+    def log_off(self):
+        self.server_socket.sendall(self.encrypt_message('lof'))
+
+    def start_game(self):
+        self.server_socket.sendall(self.encrypt_message('srt'))
+
+    def get_board(self):
         return self.decrypt_message(self.server_socket.recv(8192))
 
     def generate_keys(self):
