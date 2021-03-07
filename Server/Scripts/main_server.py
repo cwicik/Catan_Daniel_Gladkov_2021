@@ -104,11 +104,11 @@ class Board:
         self.initialize_board()
 
     def initialize_board(self):
-        types = [0, 0, 0, 0,
-                 1, 1, 1, 1,
-                 2, 2, 2, 2,
-                 3, 3, 3,
-                 4, 4, 4]
+        types = [1, 2, 0, 4,
+                 1, 0, 1, 3,
+                 2, 0, 4, 2,
+                 2, 3, 1,
+                 4, 0, 3]
         shuffle(types)
 
         numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]
@@ -118,7 +118,7 @@ class Board:
 
         for i in range(len(self.used_tiles)):
             if i == desert_tile:
-                self.tiles[self.used_tiles[i]] = Tile(5, " ")
+                self.tiles[self.used_tiles[i]] = Tile(5, 0)
             else:
                 self.tiles[self.used_tiles[i]] = Tile(types.pop(), numbers.pop())
 
@@ -153,7 +153,7 @@ class Board:
         for index in self.used_nodes:
             node = self.nodes[index].compact()
             if node != "":
-                nodes += '\t' + node
+                nodes += '\t' + node + index
         return nodes
 
     def get_edges(self):
@@ -161,7 +161,7 @@ class Board:
         for index in self.used_edges:
             edge = self.edges[index].compact()
             if edge != "":
-                edges += '\t' + edge
+                edges += '\t' + edge + index
         return edges
 
     def get_board(self):
@@ -188,8 +188,8 @@ class Player:
                       [],[],[],[],[])
 
     def gain(self, num):
-        for resource in self.gains[num]:
-            self.resources[resource] += 1
+        for resource in self.gains[int(num)]:
+            self.resources[int(resource)] += 1
 
     def get_gains(self):
         return self.gains
@@ -219,9 +219,10 @@ class GameLobby:
         self.players = [Player(host, 0)]
         host.set_lobby(self)
         self.board = Board()
-        self.current_player = None
+        self.current_player = self.players[0]
         self.started = False
         self.starting_game = True
+        self.roll = ''
 
     def add_player(self, user):
         if len(self.players) > 3:
@@ -246,12 +247,12 @@ class GameLobby:
     def get_players(self):
         return self.players
 
-    def send_board(self):
+    def send_board(self, command='brd', extra=''):
         for player in self.players:
-            info = 'brd' + '\t' + str(player.get_points())
+            info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
             for resource in player.get_resources():
                 info += '\t' + str(resource)
-            info += self.board.get_board()
+            info += self.board.get_board() + '\tx' + extra
             player.get_user().send_board(info)
 
     """
@@ -275,6 +276,7 @@ class GameLobby:
         roll = randint(2,12)
         for player in self.players:
             player.gain(roll)
+        self.roll = roll
 
     def build_settlement(self, player, cords):
         building_plot = self.board.get_nodes()[cords]
@@ -318,17 +320,9 @@ class GameLobby:
     def start_game(self):
         for player in self.players:
             player.get_user().send_starting()
-        print('yes')
-        while True:
-            #pre-game
-
-            if self.starting_game:
-            #game
-                self.send_board()
-                self.starting_game = False
-                pass
-            if self.started:
-                pass
+        if self.starting_game:
+            self.starting_game = False
+            self.send_board()
 
 
 class UserConnection:
@@ -421,7 +415,9 @@ class UserConnection:
                 self.check_connection()
                 print('Starting {}'.format(request))
                 try:
-                    self.socket.sendall(self.encrypt_message(self.operations[request[:3]](request[3:], self)))
+                    answer = self.operations[request[:3]](request[3:], self)
+                    if answer != '1000':
+                        self.socket.sendall(self.encrypt_message(answer))
                 except BaseException as e:
                     self.socket.sendall(self.encrypt_message('300'))
                     print('error:' , e)
@@ -449,13 +445,13 @@ class Server:
         self.users = []
         self.cluster = MongoClient(mongo_conection)['Catan']
         self.smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
+        with open('email.txt') as f:
+            email_code = f.readline()
         try:
             self.smtpObj.starttls()
-            self.smtpObj.login("catanonlinegame@gmail.com", "jksukzezlqomtvdy")
+            self.smtpObj.login("catanonlinegame@gmail.com", email_code)
         except BaseException as e:
             print("Email Error:", e)
-
-
 
     def start(self):
         try:
@@ -472,7 +468,8 @@ class Server:
                                'jin': self.join_game,
                                'liv': self.leave_game,
                                'plr': self.get_players,
-                               'srt': self.start_game}
+                               'srt': self.start_game,
+                               'rol': self.roll_dice}
             self.codes = ['111111', '222222'] # all lobby codes available
             self.games = {}
             while True:
@@ -492,9 +489,11 @@ class Server:
     def host_game(self, *args):
         try:
             code = self.codes.pop()
+            print('getting code', code)
             self.games[code] = GameLobby(args[1])
             return '105' + code
         except IndexError:
+            print('error hosting game')
             return '213'
 
     def leave_game(self, *args):
@@ -502,11 +501,14 @@ class Server:
         lobby = user.get_lobby()
         lobby.remove_player(user)
         user.set_lobby(None)
+        print(user.get_username(), ' leaving lobby')
+        print(lobby)
+        print(user.get_lobby())
         if len(lobby.get_players()) == 0:
             code = self.get_key(lobby)
             self.codes.append(code)
             del self.games[code]
-        return '1000'
+        return '999'
 
     def join_game(self, *args):
         try:
@@ -517,11 +519,19 @@ class Server:
     @staticmethod
     def start_game(*args):
         args[1].get_lobby().start_game()
+        return '1000'
+
+    @staticmethod
+    def roll_dice(*args):
+        args[1].get_lobby().roll_dice()
+        args[1].get_lobby().send_board()
+        return '1000'
 
     def log_off(self, *args):
-        user =  args[1]
-        del self.users[self.users.index(user)]
+        user = args[1]
+        print(user)
         user.set_username(None)
+        return '1000'
 
     def get_players(self, *args):
         players = self.games[args[0]].get_players()
@@ -653,6 +663,7 @@ If you haven't expected this email, please ignore it.""".format(email, code)
         return '101'
 
 if __name__ == '__main__':
-    pymongo = "mongodb+srv://cwicik:yB5^V7Q4Es2Mc^@server-database.nqwtm.mongodb.net/Catan?retryWrites=true&w=majority"
+    with open('mongodb.txt') as f:
+        pymongo = f.readline()
     server = Server('0.0.0.0', 1731, pymongo)
     server.start()

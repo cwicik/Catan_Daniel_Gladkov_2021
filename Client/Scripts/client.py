@@ -83,6 +83,9 @@ class Client:
     def get_board(self):
         return self.decrypt_message(self.server_socket.recv(8192))
 
+    def roll_dice(self):
+        self.server_socket.sendall(self.encrypt_message('rol'))
+
     def generate_keys(self):
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
