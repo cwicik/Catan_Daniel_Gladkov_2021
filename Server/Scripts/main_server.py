@@ -445,8 +445,8 @@ class Server:
         self.users = []
         self.cluster = MongoClient(mongo_conection)['Catan']
         self.smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
-        with open('email.txt') as f:
-            email_code = f.readline()
+        with open('email.txt') as file:
+            email_code = file.readline()
         try:
             self.smtpObj.starttls()
             self.smtpObj.login("catanonlinegame@gmail.com", email_code)
@@ -662,8 +662,9 @@ If you haven't expected this email, please ignore it.""".format(email, code)
         self.cluster['Users'].insert_one({'username': username, 'password': password, 'email': email})
         return '101'
 
+
 if __name__ == '__main__':
-    with open('mongodb.txt') as f:
-        pymongo = f.readline()
+    with open('mongodb.txt') as file:
+        pymongo = file.readline()
     server = Server('0.0.0.0', 1731, pymongo)
     server.start()
