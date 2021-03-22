@@ -86,10 +86,19 @@ class Client:
     def roll_dice(self):
         self.server_socket.sendall(self.encrypt_message('rol'))
 
+    def build_settlement(self, cords):
+        self.server_socket.sendall(self.encrypt_message('bst' + str(cords)))
+
+    def build_road(self, cords):
+        self.server_socket.sendall(self.encrypt_message('bro' + str(cords)))
+
+    def finish_turn(self):
+        self.server_socket.sendall(self.encrypt_message('fns'))
+
     def generate_keys(self):
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
-            key_size=2048,
+            key_size=4096,
             backend=default_backend()
         )
         self.public_key = self._private_key.public_key()

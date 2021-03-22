@@ -5,13 +5,12 @@ from pyisemail import is_email
 from random import randint, shuffle
 import smtplib
 import bcrypt
-from time import time, sleep
+from time import time
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
-
 
 
 class Road:
@@ -25,6 +24,15 @@ class Road:
         if self.building != '0':
             return self.owner + '\t' + self.building
         return ""
+
+    def get_owner(self):
+        return self.owner
+
+    def set_owner(self, owner):
+        self.owner = owner
+
+    def set_building(self, building):
+        self.building = building
 
 class Building:
     def __init__(self, neighboring_tiles):
@@ -41,28 +49,31 @@ class Building:
     def get_resources(self):
         resources = []
         for tile in self.neighboring_tiles:
-            resources.append((tile.get_type(), tile.get_number()))
+            resources.append((tile.get_resource(), tile.get_number()))
         return resources
 
     def compact(self):
         if self.building != '0':
-            return self.owner + '\t' + str(self.building)
+            return self.owner + '\t' + self.building
         return ""
+
+    def set_building(self, building):
+        self.building = building
 
 
 class Tile:
-    def __init__(self, type, number):
-        self.type = type
+    def __init__(self, resource, number):
+        self.resource = resource
         self.number = number
 
-    def get_type(self):
-        return self.type
+    def get_resource(self):
+        return self.resource
 
     def get_number(self):
         return self.number
 
     def compact(self):
-        return str(self.type) + '\t' + str(self.number)
+        return str(self.resource) + '\t' + str(self.number)
 
 
 class Board:
@@ -71,10 +82,10 @@ class Board:
         self.nodes = [None for _ in range(187)]
         self.edges = [None for _ in range(177)]
 
-        self.used_tiles = (0x11, 0x13, 0x15, 0x31, 0x51,
-                           0x33, 0x35, 0x37, 0x53, 0x73,
-                           0x55, 0x57, 0x59, 0x75, 0x95,
-                           0x77, 0x79, 0x97, 0x99)
+        self.used_tiles = (0x15, 0x13, 0x11, 0x31, 0x51,
+                           0x73, 0x95, 0x97, 0x99, 0x79,
+                           0x59, 0x37, 0x35, 0x33, 0x53,
+                           0x75, 0x77, 0x57, 0x55)
 
         self.used_nodes = (0x1, 0x3, 0x5, 0x10, 0x12, 0x14, 0x16,
                            0x21, 0x23, 0x25, 0x27,
@@ -88,18 +99,17 @@ class Board:
                            0xA5, 0xA7, 0xA9, 0xAB,
                            0xB6, 0xB8, 0xBA)
 
-        self.used_edges = (0x0, 0x2, 0x3, 0x4, 0x5,
-                           0x10, 0x20, 0x30, 0x40, 0x50,
-                           0x12, 0x14, 0x16, 0x21, 0x41, 0x61,
-                           0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-                           0x32, 0x42, 0x52, 0x62, 0x72,
-                           0x32, 0x36, 0x38, 0x43, 0x63, 0x83,
-                           0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x54, 0x64, 0x74, 0x84, 0x94,
-                           0x56, 0x58, 0x5A, 0x65, 0x85, 0xA5,
-                           0x66, 0x67, 0x68, 0x69, 0x6A, 0x76, 0x86, 0x96, 0xA6,
-                           0x78, 0x7A, 0x87, 0xA7,
-                           0x88, 0x89, 0x8A, 0x98, 0xA8,
-                           0x9A, 0xA9, 0xAA)
+        self.used_edges = (0x0, 0x1, 0x2, 0x3, 0x4, 0x5,
+              0x10, 0x12, 0x14, 0x16,
+              0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+              0x30, 0x32, 0x34, 0x36, 0x38,
+              0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
+              0x50, 0x52, 0x54, 0x56, 0x58, 0x5A,
+              0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A,
+              0x72, 0x74, 0x76, 0x78, 0x7A,
+              0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A,
+              0x94, 0x96, 0x98, 0x9A,
+              0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA)
 
         self.initialize_board()
 
@@ -148,12 +158,15 @@ class Board:
             tiles += '\t' + self.tiles[index].compact()
         return tiles
 
+    def get_nodes_arr(self):
+        return self.nodes
+
     def get_nodes(self):
         nodes = ""
         for index in self.used_nodes:
             node = self.nodes[index].compact()
             if node != "":
-                nodes += '\t' + node + index
+                nodes += '\t' + node + '\t' + str(index)
         return nodes
 
     def get_edges(self):
@@ -161,11 +174,14 @@ class Board:
         for index in self.used_edges:
             edge = self.edges[index].compact()
             if edge != "":
-                edges += '\t' + edge + index
+                edges += '\t' + edge + '\t' + str(index)
         return edges
 
+    def get_edges_arr(self):
+        return self.edges
+
     def get_board(self):
-        return self.get_tiles() + '\tn' +self.get_nodes() + '\te' + self.get_edges()
+        return '\tn' + self.get_nodes() + '\te' + self.get_edges()
 
 
 class Player:
@@ -173,19 +189,21 @@ class Player:
                       1: 'wood',
                       2: 'wheat',
                       3: 'brick',
-                      4: 'stone',}
+                      4: 'stone'}
     color_dict = {0: 'red',
-                  1: 'green',
-                  2: 'blue',
-                  3: 'white'}
+                  1: 'blue',
+                  2: 'green',
+                  3: 'orange'}
+
     def __init__(self, user, color):
         self.user = user
         self.color = color
-        self.points = 0
-        self.resources = [1, 1, 1, 1, 1]
-        self.gains = ([],[],[],[],
-                      [],[],[],[],
-                      [],[],[],[],[])
+        self.settlements = []
+        self.roads = []
+        self.resources = [500, 500, 500, 500, 500]
+        self.gains = ([], [], [], [],
+                      [], [], [], [],
+                      [], [], [], [], [])
 
     def gain(self, num):
         for resource in self.gains[int(num)]:
@@ -195,7 +213,7 @@ class Player:
         return self.gains
 
     def can_afford(self, building):
-        if building == 1: # settlement
+        if building == 1:  # settlement
             return self.resources[0] >= 1 and self.resources[1] >= 1 and self.resources[2] >= 1 and self.resources[3] >= 1
         if building == 2:  # city
             return self.resources[2] >= 2 and self.resources[4] >= 3
@@ -208,11 +226,15 @@ class Player:
     def get_user(self):
         return self.user
 
-    def gain_point(self):
-        self.points += 1
+    def add_settlement(self, cords):
+        self.settlements.append(cords)
+
+    def add_road(self, cords):
+        self.roads.append(cords)
 
     def get_points(self):
-        return self.points
+        return len(self.settlements)
+
 
 class GameLobby:
     def __init__(self, host):
@@ -221,7 +243,7 @@ class GameLobby:
         self.board = Board()
         self.current_player = self.players[0]
         self.started = False
-        self.starting_game = True
+        self.starting_game = False
         self.roll = ''
 
     def add_player(self, user):
@@ -236,24 +258,90 @@ class GameLobby:
 
     def remove_player(self, user):
         to_delete = -1
+        nodes = self.board.nodes
+        edges = self.board.edges
+
+        player = self.user_to_player(user)
+        if self.started:
+            print('deleting buildings...')
+            deleted_buildings = 'N\t'
+            for node in player.settlements:
+                deleted_buildings += str(node) + '\t'
+                nodes[node].set_owner(None)
+            deleted_buildings += 'E\t'
+            for edge in player.roads:
+                deleted_buildings += str(edge) + '\t'
+                edges[edge].set_owner(None)
+            if self.current_player == player:
+                self.next_turn()
+
         for i in range(len(self.players)):
             if self.players[i].get_user() == user:
                 to_delete = i
         if to_delete > -1:
             del self.players[to_delete]
-        for player in self.players:
-            player.get_user().send_players(self.players)
+
+        if not self.started:
+            for player in self.players:
+                player.get_user().send_players(self.players)
+        else:
+            self.send_board('del', deleted_buildings)
+
 
     def get_players(self):
         return self.players
 
-    def send_board(self, command='brd', extra=''):
+    def next_turn(self):
+        self.current_player = self.players[((self.players.index(self.current_player) + 1) % len(self.players))]
+
+    def send_board(self, command='brd', extra_data=''):
+        print(':cmd:', command, ':extra:', extra_data)
+        if command[0] == '4':
+            self.current_player.get_user().send_error(command)
+        elif command == 'srt':
+            for player in self.players:
+                info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
+                for resource in player.get_resources():
+                    info += '\t' + str(resource)
+                info += self.board.get_tiles()
+                player.get_user().send_board(info)
+        elif command == 'nod':
+            for player in self.players:
+                info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
+                for resource in player.get_resources():
+                    info += '\t' + str(resource)
+                info += '\tn\t' + extra_data + '\te' + '\tx'
+                player.get_user().send_board(info)
+        elif command == 'edg':
+            for player in self.players:
+                info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
+                for resource in player.get_resources():
+                    info += '\t' + str(resource)
+                info += '\tn' + '\te\t' + extra_data + '\tx'
+                player.get_user().send_board(info)
+        elif command == 'trd' or command == 'del':
+            for player in self.players:
+                info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
+                for resource in player.get_resources():
+                    info += '\t' + str(resource)
+                info += '\tn' + '\te' + '\tx\t' + extra_data
+                player.get_user().send_board(info)
+        else:
+            for player in self.players:
+                info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(
+                    player.get_points())
+                for resource in player.get_resources():
+                    info += '\t' + str(resource)
+                info += '\tn' + '\te' + '\tx'
+                player.get_user().send_board(info)
+
+
+
+    def user_to_player(self, user):
         for player in self.players:
-            info = command + '\t' + self.current_player.get_user().get_username() + '\t' + str(self.roll) + '\t' + str(player.get_points())
-            for resource in player.get_resources():
-                info += '\t' + str(resource)
-            info += self.board.get_board() + '\tx' + extra
-            player.get_user().send_board(info)
+            if player.get_user() == user:
+                return player
+        return None
 
     """
     to check nodes near a given road:
@@ -273,56 +361,129 @@ class GameLobby:
     """
 
     def roll_dice(self):
-        roll = randint(2,12)
+        roll = randint(2, 12)
         for player in self.players:
             player.gain(roll)
         self.roll = roll
 
-    def build_settlement(self, player, cords):
-        building_plot = self.board.get_nodes()[cords]
-        if building_plot.get_owner() is not None:
-            return '400'
-        if not self.starting_game:
-            if self.can_build_settlement(player, cords):
-                if player.can_afford(1):
-                    player_resources = player.get_resources()
-                    player_resources[0] -= 1
-                    player_resources[1] -= 1
-                    player_resources[2] -= 1
-                    player_resources[3] -= 1
+    def build_settlement(self, user, cords):
+        player = self.user_to_player(user)
+        building_plot = self.board.get_nodes_arr()[cords]
 
-                return '402'
-            return '401'
-        building_plot.set_owner(player)
-        building_plot.set_building(1)
-        new_resources = building_plot.get_resources()
-        player_gains = player.get_gains()
-        for resource in new_resources:
-            player_gains[resource[1]].append(resource[0])
-        return '500'
+        if self.players[len(self.players) - 1].get_points() >= 2:
+            self.starting_game = False
+
+        if building_plot.get_owner() is not None:
+            return '400', ''
+
+        if self.can_build_settlement(player, cords):
+            if not self.starting_game:
+                if not player.can_afford(1):
+                    return '402', ''
+                player_resources = player.get_resources()
+                player_resources[0] -= 1
+                player_resources[1] -= 1
+                player_resources[2] -= 1
+                player_resources[3] -= 1
+            building_plot.set_owner(player)
+            building_plot.set_building('1')
+            new_resources = building_plot.get_resources()
+            player_gains = player.get_gains()
+            for resource in new_resources:
+                player_gains[resource[1]].append(resource[0])
+            player.add_settlement(cords)
+            return 'nod', str(self.players.index(player)) + '\t' + '1' + '\t' + str(cords)
+        return '401', ''
 
     def can_build_settlement(self, player, cords):
         _node_to_edge_offsets = (-0x10, -1, -0x11, 0)
-        _edge_to_edge_offsets = (-0x10, -1, 0x10, 1)
+        edges = self.board.get_edges_arr()
+        nodes = self.board.get_nodes_arr()
 
-        edges = self.board.get_edges()
-        for node_offset in _node_to_edge_offsets:
-            try:
-                if edges[cords + node_offset] is not None:
-                    if edges[cords + node_offset].get_owner() == player:
-                        for edge_offset in _edge_to_edge_offsets:
-                            if edges[cords + node_offset + edge_offset] is not None and edges[cords + node_offset+ edge_offset].get_owner() == player:
-                                return True
-            except IndexError:
-                pass
+        check_neighbor = []
+        adjacent_edges = []
+        adjacent_nodes = []
+
+        for edge_offset in _node_to_edge_offsets:
+            if cords + edge_offset in self.board.used_edges:
+                check_neighbor.append(cords + edge_offset)
+                if edges[cords + edge_offset].get_owner() is player:
+                    adjacent_edges.append(cords + edge_offset)
+        print(adjacent_edges)
+        for edge in check_neighbor:
+                for node_offset in _node_to_edge_offsets:
+                    if edge - node_offset in self.board.used_nodes:
+                        if nodes[edge - node_offset].get_owner() is not None:
+                            return False
+
+        if not self.starting_game:
+            for available_edge in adjacent_edges:
+                for node_offset in _node_to_edge_offsets:
+                    if available_edge - node_offset != cords:
+                        if available_edge - node_offset in self.board.used_nodes:
+                            if nodes[available_edge - node_offset].get_owner() is None:
+                                adjacent_nodes.append(available_edge - node_offset)
+
+            for available_node in adjacent_nodes:
+                    for edge_offset in _node_to_edge_offsets:
+                        if available_node + edge_offset not in adjacent_edges:
+                            if available_node + edge_offset in self.board.used_edges:
+                                if edges[available_node + edge_offset].get_owner() is player:
+                                    return True
+
+        return self.starting_game
+
+    def build_road(self, user, cords):
+
+        # Add that first 2 roads only can go near their settlement
+
+        player = self.user_to_player(user)
+        building_plot = self.board.get_edges_arr()[cords]
+
+        if self.players[len(self.players) - 1].get_points() >= 2:
+            self.starting_game = False
+
+        if building_plot.get_owner() is not None:
+            return '400', ''
+
+        if self.can_build_road(player, cords):
+            if not self.starting_game:
+                    if not player.can_afford(1):
+                        return '402', ''
+                    player_resources = player.get_resources()
+                    player_resources[1] -= 1
+                    player_resources[3] -= 1
+            player.add_road(cords)
+            building_plot.set_owner(player)
+            building_plot.set_building('1')
+            return 'edg', str(self.players.index(player)) + '\t' + str(cords)
+        return '401', ''
+
+    def can_build_road(self, player, cords):
+        _edge_to_node_offsets = (0x10, 1, 0x11, 0)
+        _edge_to_edge_offsets = (-0x10, -0x11, 0x10, 0x11, 1, -1)
+        edges = self.board.get_edges_arr()
+        nodes = self.board.get_nodes_arr()
+
+        for node_offset in _edge_to_node_offsets:
+            if cords + node_offset in self.board.used_nodes:
+                if nodes[cords + node_offset].get_owner() is player:
+                    return True
+
+        for edge_offset in _edge_to_edge_offsets:
+            if cords + edge_offset in self.board.used_edges:
+                if edges[cords + edge_offset].get_owner() is player:
+                    return True
+
         return False
 
+
     def start_game(self):
+        self.started = True
+        self.starting_game = True
         for player in self.players:
             player.get_user().send_starting()
-        if self.starting_game:
-            self.starting_game = False
-            self.send_board()
+        self.send_board('srt')
 
 
 class UserConnection:
@@ -341,7 +502,7 @@ class UserConnection:
     def generate_keys(self):
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
-            key_size=2048,
+            key_size=4096,
             backend=default_backend()
         )
         self.public_key = self._private_key.public_key()
@@ -382,6 +543,9 @@ class UserConnection:
     def send_starting(self):
         self.socket.sendall(self.encrypt_message('srt'))
 
+    def send_error(self, error_code):
+        self.socket.sendall(self.encrypt_message(error_code + '\t'))
+
     def get_code(self):
         return self.decrypt_message(self.socket.recv(8192))
 
@@ -420,7 +584,7 @@ class UserConnection:
                         self.socket.sendall(self.encrypt_message(answer))
                 except BaseException as e:
                     self.socket.sendall(self.encrypt_message('300'))
-                    print('error:' , e)
+                    print('error:', e)
                 if request != '':
                     print('Ending {}'.format(request))
         except BaseException as e:
@@ -428,8 +592,8 @@ class UserConnection:
             print('shutting down')
             try:
                 self.operations['liv'](request[3:], self)
-            except:
-                pass
+            except BaseException as e:
+                print(e)
             self.socket.close()
             self.user = None
             self.socket = None
@@ -445,6 +609,8 @@ class Server:
         self.users = []
         self.cluster = MongoClient(mongo_conection)['Catan']
         self.smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
+        self.codes = ['111111', '222222']  # all lobby codes available
+        self.games = {}
         with open('email.txt') as file:
             email_code = file.readline()
         try:
@@ -469,9 +635,11 @@ class Server:
                                'liv': self.leave_game,
                                'plr': self.get_players,
                                'srt': self.start_game,
-                               'rol': self.roll_dice}
-            self.codes = ['111111', '222222'] # all lobby codes available
-            self.games = {}
+                               'rol': self.roll_dice,
+                               'bst': self.build_settlement,
+                               'bro': self.build_road,
+                               'fns': self.next_turn}
+
             while True:
                 client_socket, client_address = self.socket.accept()
                 self.handle_client(client_socket)
@@ -497,18 +665,16 @@ class Server:
             return '213'
 
     def leave_game(self, *args):
-        user =  args[1]
+        user = args[1]
         lobby = user.get_lobby()
         lobby.remove_player(user)
         user.set_lobby(None)
-        print(user.get_username(), ' leaving lobby')
-        print(lobby)
         print(user.get_lobby())
         if len(lobby.get_players()) == 0:
             code = self.get_key(lobby)
             self.codes.append(code)
             del self.games[code]
-        return '999'
+        return '1000'
 
     def join_game(self, *args):
         try:
@@ -524,6 +690,24 @@ class Server:
     @staticmethod
     def roll_dice(*args):
         args[1].get_lobby().roll_dice()
+        args[1].get_lobby().send_board()
+        return '1000'
+
+    @staticmethod
+    def build_settlement(*args):
+        answer = args[1].get_lobby().build_settlement(args[1], int(args[0]))
+        args[1].get_lobby().send_board(answer[0], answer[1])
+        return '1000'
+
+    @staticmethod
+    def build_road(*args):
+        answer = args[1].get_lobby().build_road(args[1], int(args[0]))
+        args[1].get_lobby().send_board(answer[0], answer[1])
+        return '1000'
+
+    @staticmethod
+    def next_turn(*args):
+        args[1].get_lobby().next_turn()
         args[1].get_lobby().send_board()
         return '1000'
 
