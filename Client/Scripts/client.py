@@ -95,10 +95,13 @@ class Client:
     def finish_turn(self):
         self.server_socket.sendall(self.encrypt_message('fns'))
 
+    def stop(self):
+        self.server_socket.sendall(self.encrypt_message('stp'))
+
     def generate_keys(self):
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
-            key_size=4096,
+            key_size=2048,
             backend=default_backend()
         )
         self.public_key = self._private_key.public_key()

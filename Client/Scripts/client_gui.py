@@ -23,14 +23,13 @@ s_height = root.winfo_height()
 client_socket = None
 current_frame = None
 screens = []
-
-# Load images
+stop = True
 
 
 def to_rgb(rgb):
     return "#%02x%02x%02x" % rgb
 
-
+# Load images
 try:
     background_image = PhotoImage(file='../Pictures/Catan_Background.png')
     title_image = PhotoImage(file='../Pictures/Catan_Title.png')
@@ -140,7 +139,7 @@ def loading_cycles():
         cycle.insert(0, cycle.pop())
 
 
-def attempt_connection(start, client_socket, canvas):
+def attempt_connection(start, canvas):
     global connected
     error = canvas.create_text(960, 900, text='', font=('Comic Sans', 30))
     showing_message = False
@@ -154,7 +153,9 @@ def attempt_connection(start, client_socket, canvas):
 def go_back():
     global stop
     if len(screens) != 0:
-        stop = True
+        if not stop:
+            stop = True
+            client_socket.stop()
         screen = screens.pop()
         if isinstance(screen, tuple):
             screen[0](screen[1])
@@ -165,9 +166,9 @@ def go_back():
 
 
 def connect_to_server():
-    global client_socket
     global current_frame
     global connected
+    global client_socket
     if current_frame is not None:
         current_frame.destroy()
 
@@ -184,7 +185,7 @@ def connect_to_server():
     if connected is not True:
         cycles = loading_cycles()
         start = time()
-        client_handler = threading.Thread(target=attempt_connection, args=(start, client_socket, canvas), daemon=True)
+        client_handler = threading.Thread(target=attempt_connection, args=(start, canvas), daemon=True)
         client_handler.start()
 
     while connected is not True:
@@ -309,16 +310,14 @@ def finish_turn():
 
 
 
-def get_game_data(client_socket):
+def get_game_data():
     global stop
     global ended
     global game_data
-    while True:
-        print('getting data..')
+    while not stop:
+        data = client_socket.get_board().split('\t')
         if stop:
             break
-        data = client_socket.get_board().split('\t')
-        print('data', data)
         if data[0][0] == '4':
             tkinter.messagebox.showerror("Error", get_error(data[0]))
         else:
@@ -327,12 +326,11 @@ def get_game_data(client_socket):
 
 def game_screen(username):
     global current_frame
-    global client_socket
     global stop
     global ended
     global game_data
     game_data = client_socket.get_board().split('\t')
-    threading.Thread(target=get_game_data, args=(client_socket,), daemon=True).start()
+    threading.Thread(target=get_game_data, daemon=True).start()
 
     screen_frame = Frame(root)
 
@@ -377,10 +375,10 @@ def game_screen(username):
     resources_arr = []
 
     for i in range(len(resources)):
-        x = 1800
-        y = 250 + (i + 1) * 100
-        canvas.create_image(x, y, anchor="nw", image=resources_dict[str(i)])
-        resources_arr.append(canvas.create_text(x - 45, y + 20, anchor="nw", text=resources[i] + 'X', font=('Comic Sans', 25)))
+        x = 1875
+        y = 275 + (i + 1) * 100
+        canvas.create_image(x, y , anchor="e", image=resources_dict[str(i)])
+        resources_arr.append(canvas.create_text(x - 75, y, anchor="e", text=resources[i] + 'X', font=('Comic Sans', 25)))
 
     building_buttons = {}
     for value, cords in node_cords.items():
@@ -405,20 +403,20 @@ def game_screen(username):
 
     if current_player != username:
         dice_button.config(state=DISABLED)
+        finish_turn_button.config(state=DISABLED)
         for button in building_buttons.values():
             canvas.itemconfig(button, state=HIDDEN)
         for button in road_buttons.values():
             canvas.itemconfig(button, state=HIDDEN)
     else:
+        dice_button.config(state=NORMAL)
+        finish_turn_button.config(state=NORMAL)
         for button in building_buttons.values():
             canvas.itemconfig(button, state=NORMAL)
         for button in road_buttons.values():
             canvas.itemconfig(button, state=NORMAL)
-        dice_button.config(state=NORMAL)
 
-    while True:
-        if stop:
-            break
+    while not stop:
         if game_data != old_game_data:
             old_game_data = game_data
             command = game_data[0]
@@ -448,6 +446,7 @@ def game_screen(username):
 
             if current_player != username:
                 dice_button.config(state=DISABLED)
+                finish_turn_button.config(state=DISABLED)
                 for cords, button in building_buttons.items():
                     if canvas.itemcget(building_images[cords], 'state') == HIDDEN:
                         canvas.itemconfig(button, state=HIDDEN)
@@ -455,13 +454,14 @@ def game_screen(username):
                     if canvas.itemcget(button, 'fill') == 'black':
                         canvas.itemconfig(button, state=HIDDEN)
             else:
+                dice_button.config(state=NORMAL)
+                finish_turn_button.config(state=NORMAL)
                 for cords, button in building_buttons.items():
                     if canvas.itemcget(building_images[cords], 'state') == HIDDEN:
                         canvas.itemconfig(button, state=NORMAL)
                 for button in road_buttons.values():
                     if canvas.itemcget(button, 'fill') == 'black':
                         canvas.itemconfig(button, state=NORMAL)
-                dice_button.config(state=NORMAL)
 
             canvas.itemconfig(current_points, text='Your Points: ' + points)
             canvas.itemconfig(current_play, text='Current Player: ' + current_player)
@@ -484,7 +484,7 @@ def game_screen(username):
         sleep(0.1)
 
 
-def get_player_names(client_socket):
+def get_player_names():
     global started
     global player_names
     global stop
@@ -496,7 +496,7 @@ def get_player_names(client_socket):
             return
         server_input = client_socket.get_player_names()
         started = server_input[:3] == 'srt'
-        if started:
+        if started or stop:
             return
         print('input:', server_input)
         player_names = server_input[4:].split('\t')
@@ -506,7 +506,6 @@ def lobby_screen(code, username):
     screens.append((main_menu, username))
     global current_frame
     global started
-    global client_socket
     global player_names
     global stop
 
@@ -540,7 +539,7 @@ def lobby_screen(code, username):
         players_arr.append(canvas.create_text(960, 500 + (i + 1) * 50, text='', font=('Comic Sans', 25)))
 
     if not started:
-        update_players = threading.Thread(target=get_player_names, args=(client_socket,), daemon=True)
+        update_players = threading.Thread(target=get_player_names, daemon=True)
         update_players.start()
 
     while not started:
@@ -562,7 +561,6 @@ def lobby_screen(code, username):
         canvas.update()
         sleep(0.1)
     game_screen(username)
-
 
 def join_lobby(join_code, username):
     code = client_socket.join_game(join_code)

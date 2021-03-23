@@ -200,7 +200,7 @@ class Player:
         self.color = color
         self.settlements = []
         self.roads = []
-        self.resources = [500, 500, 500, 500, 500]
+        self.resources = [100, 100, 100, 100, 100]
         self.gains = ([], [], [], [],
                       [], [], [], [],
                       [], [], [], [], [])
@@ -235,6 +235,8 @@ class Player:
     def get_points(self):
         return len(self.settlements)
 
+    def get_color(self):
+        return str(self.color)
 
 class GameLobby:
     def __init__(self, host):
@@ -272,11 +274,11 @@ class GameLobby:
             for edge in player.roads:
                 deleted_buildings += str(edge) + '\t'
                 edges[edge].set_owner(None)
-            if self.current_player == player:
+            if self.current_player is player:
                 self.next_turn()
 
         for i in range(len(self.players)):
-            if self.players[i].get_user() == user:
+            if self.players[i] is player:
                 to_delete = i
         if to_delete > -1:
             del self.players[to_delete]
@@ -392,7 +394,7 @@ class GameLobby:
             for resource in new_resources:
                 player_gains[resource[1]].append(resource[0])
             player.add_settlement(cords)
-            return 'nod', str(self.players.index(player)) + '\t' + '1' + '\t' + str(cords)
+            return 'nod', player.get_color() + '\t' + '1' + '\t' + str(cords)
         return '401', ''
 
     def can_build_settlement(self, player, cords):
@@ -456,7 +458,7 @@ class GameLobby:
             player.add_road(cords)
             building_plot.set_owner(player)
             building_plot.set_building('1')
-            return 'edg', str(self.players.index(player)) + '\t' + str(cords)
+            return 'edg', player.get_color() + '\t' + str(cords)
         return '401', ''
 
     def can_build_road(self, player, cords):
@@ -502,7 +504,7 @@ class UserConnection:
     def generate_keys(self):
         self._private_key = rsa.generate_private_key(
             public_exponent=65537,
-            key_size=4096,
+            key_size=2048,
             backend=default_backend()
         )
         self.public_key = self._private_key.public_key()
@@ -638,7 +640,8 @@ class Server:
                                'rol': self.roll_dice,
                                'bst': self.build_settlement,
                                'bro': self.build_road,
-                               'fns': self.next_turn}
+                               'fns': self.next_turn,
+                               'stp': self.stop}
 
             while True:
                 client_socket, client_address = self.socket.accept()
@@ -647,12 +650,13 @@ class Server:
         except socket.error as e:
             print(e)
 
+    def stop(self, *args):
+        return '000'
+
     def get_key(self, val):
         for key, value in self.games.items():
             if val == value:
                 return key
-
-        return None
 
     def host_game(self, *args):
         try:
