@@ -1,0 +1,1 @@
+mongodb+srv://cwicik:yB5^V7Q4Es2Mc^@server-database.nqwtm.mongodb.net/Catan?retryWrites=true&w=majority

@@ -19,9 +19,15 @@
     "211": "Lobby Is Full",
     "212": "Lobby Code Is Wrong, This Lobby Doesn't Exist",
     "213": "Too Many Lobbies Are In Game, Wait For One Of Them To Finish",
+    "214": "Game Already Started",
+    "215": "Email Already Taken",
     "300": "Unknown Command",
     "400": "Land Already Occupied",
-    "401": "Can't Build A Settlement There, Need At-least 2 Roads From Your Settlements",
+    "401": "Can't Build Here, Need At-least 2 Roads From Your Settlements And Can't Border A Different Settlement",
     "402": "Not Enough Resources To Build Settlement",
+    "403": "Already Built A Settlement This Turn",
+    "404": "Already Built A Road This Turn",
+    "405": "Can Only Build Road Near The Settlement Built This Turn",
+    "406": "Not Enough Resources To Build Road",
     "500": "Built Successfully"
 }
